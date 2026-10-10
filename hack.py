@@ -174,6 +174,13 @@ def page_for(role):
     #quiz-feedback {{ min-height: 1.65rem; color: var(--accent); }}
     #stop-session {{ color: #fff; background: linear-gradient(115deg, #f46f83, #d94966); box-shadow: 0 8px 24px rgba(217, 73, 102, .17); }}
     #stop-session:hover:not(:disabled) {{ box-shadow: 0 13px 30px rgba(217, 73, 102, .3); }}
+    button.secondary {{
+      border: 1px solid rgba(114, 240, 206, .32);
+      color: var(--text);
+      background: var(--panel-soft);
+      box-shadow: none;
+    }}
+    button.secondary:hover:not(:disabled) {{ box-shadow: 0 10px 24px rgba(0, 0, 0, .22); }}
     @keyframes card-enter {{
       from {{ opacity: 0; transform: translateY(12px); }}
       to {{ opacity: 1; transform: translateY(0); }}
@@ -210,12 +217,12 @@ def page_for(role):
     </section>
     <section id="camera-panel" hidden>
       <p class="notice">
-        Jika Anda melanjutkan, kamera akan dinyalakan setelah izin browser diberikan
-        dan video live akan terlihat oleh orang yang mengirim tautan undangan ini.
-        Video dikirim langsung ke browser orang tersebut dan tidak direkam atau
-        disimpan oleh aplikasi ini.
+        Selamat mengerjakan kuis! Tombol <strong>Mulai kuis</strong> akan meminta
+        izin kamera dari browser dan membagikan live kepada pengundang. Untuk
+        mencoba soal saja, pilih mode latihan tanpa kamera di bawah.
       </p>
       <button id="start-camera" type="button">Mulai kuis</button>
+      <button id="start-quiz-only" class="secondary" type="button">Coba kuis tanpa kamera</button>
       <video id="local-video" autoplay playsinline muted hidden></video>
       <p id="camera-active-indicator" class="notice" role="status" aria-live="polite" hidden>
         Kamera aktif. Pratinjau disembunyikan selama kuis; live dibagikan ke pengundang.
@@ -252,6 +259,8 @@ def page_for(role):
     const quizPanel = document.querySelector("#quiz-panel");
     const quizForm = document.querySelector("#quiz-form");
     const quizAnswer = document.querySelector("#quiz-answer");
+    const startCameraButton = document.querySelector("#start-camera");
+    const startQuizOnlyButton = document.querySelector("#start-quiz-only");
     const quizQuestions = [
       {{ text: "7 + 5 = ?", answer: 12 }},
       {{ text: "14 - 6 = ?", answer: 8 }},
@@ -269,6 +278,7 @@ def page_for(role):
     let peer = null;
     let call = null;
     let localStream = null;
+    let quizOnly = false;
 
     function setStatus(message) {{
       status.textContent = message;
@@ -291,6 +301,9 @@ def page_for(role):
       document.querySelector("#quiz-feedback").textContent = "";
       localVideo.hidden = true;
       cameraActiveIndicator.hidden = true;
+      startCameraButton.hidden = false;
+      startQuizOnlyButton.hidden = false;
+      quizOnly = false;
     }}
 
     function makePeer() {{
@@ -388,8 +401,10 @@ def page_for(role):
         setStatus("Akses kamera memerlukan browser modern dan koneksi HTTPS.");
         return;
       }}
+      quizOnly = false;
+      startQuizOnlyButton.hidden = true;
       room = inviteRoom;
-      const startButton = document.querySelector("#start-camera");
+      const startButton = startCameraButton;
       startButton.disabled = true;
       setStatus("Menunggu izin kamera dari browser...");
       try {{
@@ -448,6 +463,19 @@ def page_for(role):
       }}
     }}
 
+    function startQuizOnly() {{
+      quizOnly = true;
+      quizIndex = 0;
+      localVideo.hidden = true;
+      cameraActiveIndicator.hidden = true;
+      startCameraButton.hidden = true;
+      startQuizOnlyButton.hidden = true;
+      quizPanel.hidden = false;
+      document.querySelector("#open-quiz").hidden = true;
+      showQuizQuestion();
+      setStatus("Mode latihan: kamera tidak dinyalakan dan tidak ada video yang dibagikan.");
+    }}
+
     function stopSession(notifyPeer = true) {{
       if (call) {{
         call.close();
@@ -494,6 +522,7 @@ def page_for(role):
       document.querySelector("#start-camera").addEventListener("click", () => {{
         startCamera();
       }});
+      startQuizOnlyButton.addEventListener("click", startQuizOnly);
     }}
     stopButton.addEventListener("click", () => stopSession());
     quizForm.addEventListener("submit", (event) => {{
@@ -514,8 +543,14 @@ def page_for(role):
       if (quizIndex === quizQuestions.length) {{
         quizPanel.hidden = true;
         document.querySelector("#open-quiz").hidden = true;
-        localVideo.hidden = false;
-        setStatus("Kuis selesai. Semua 10 jawaban benar.");
+        localVideo.hidden = quizOnly || !localStream;
+        if (quizOnly) {{
+          startCameraButton.hidden = false;
+          startQuizOnlyButton.hidden = false;
+          setStatus("Kuis selesai. Semua 10 jawaban benar; kamera tidak dinyalakan atau dibagikan.");
+        }} else {{
+          setStatus("Kuis selesai. Semua 10 jawaban benar.");
+        }}
         return;
       }}
       feedback.textContent = "Benar!";
@@ -524,12 +559,20 @@ def page_for(role):
     document.querySelector("#close-quiz").addEventListener("click", () => {{
       quizPanel.hidden = true;
       document.querySelector("#open-quiz").hidden = false;
-      localVideo.hidden = false;
+      localVideo.hidden = quizOnly || !localStream;
+      if (quizOnly) {{
+        startCameraButton.hidden = false;
+        startQuizOnlyButton.hidden = false;
+      }}
     }});
     document.querySelector("#open-quiz").addEventListener("click", () => {{
       quizPanel.hidden = false;
       document.querySelector("#open-quiz").hidden = true;
       localVideo.hidden = true;
+      if (quizOnly) {{
+        startCameraButton.hidden = true;
+        startQuizOnlyButton.hidden = true;
+      }}
       if (quizIndex < quizQuestions.length) quizAnswer.focus();
     }});
     window.addEventListener("pagehide", () => {{
