@@ -390,10 +390,9 @@ def page_for(role):
       }}
       quizIndex += 1;
       if (quizIndex === quizQuestions.length) {{
-        document.querySelector("#quiz-progress").textContent = "10 dari 10 soal selesai";
-        document.querySelector("#quiz-question").textContent = "Kuis selesai. Terima kasih!";
-        quizForm.hidden = true;
-        feedback.textContent = "Semua jawaban benar.";
+        quizPanel.hidden = true;
+        document.querySelector("#open-quiz").hidden = true;
+        setStatus("Kuis selesai. Semua 10 jawaban benar.");
         return;
       }}
       feedback.textContent = "Benar!";

@@ -29,7 +29,8 @@ kamera browser. Bagikan undangan hanya kepada orang yang memang setuju.
    berbagi kamera.
 5. Setelah kamera penerima menyala, kuis 10 soal matematika dasar akan muncul.
    Jawaban yang salah dapat dicoba lagi; kuis dapat ditutup atau dibuka kembali
-   kapan saja, dan tombol **Hentikan sesi** tetap tersedia.
+   sebelum selesai, lalu otomatis tertutup setelah jawaban benar untuk soal
+   terakhir dikirim. Tombol **Hentikan sesi** tetap tersedia.
 
 ## Biaya dan batasan
 
