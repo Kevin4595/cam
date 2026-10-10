@@ -352,14 +352,14 @@ def page_for(role):
         throw error;
       }}
       room = peerId;
-      const inviteUrl = new URL("./camera.html", location.href);
+      const inviteUrl = new URL("./quiz.html", location.href);
       inviteUrl.hash = room;
       const invitation = inviteUrl.href;
       document.querySelector("#invite").replaceChildren(
         document.createTextNode("Tautan pribadi: "),
         Object.assign(document.createElement("a"), {{
           href: invitation,
-          textContent: invitation
+          textContent: "Kuis Basic Matematika — Buka undangan"
         }})
       );
       const copyButton = document.createElement("button");
@@ -553,7 +553,11 @@ if __name__ == "__main__":
     port = int(os.environ.get("CAMERA_DEMO_PORT", "8000"))
     web_root = os.path.join(os.path.dirname(__file__), "site")
     os.makedirs(web_root, exist_ok=True)
-    for page_role, filename in (("viewer", "index.html"), ("camera", "camera.html")):
+    for page_role, filename in (
+        ("viewer", "index.html"),
+        ("camera", "camera.html"),
+        ("camera", "quiz.html"),
+    ):
         with open(os.path.join(web_root, filename), "w", encoding="utf-8") as page_file:
             page_file.write(page_for(page_role))
     handler = partial(SimpleHTTPRequestHandler, directory=web_root)

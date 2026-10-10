@@ -21,8 +21,9 @@ kamera browser. Bagikan undangan hanya kepada orang yang memang setuju.
 ## Gunakan tautan undangan
 
 1. Buka website pada desktop dan klik **Buat sesi dan tautan undangan**.
-2. Bagikan tautan pribadi yang muncul hanya kepada orang yang akan berbagi
-   kameranya.
+2. Bagikan tautan **Kuis Basic Matematika — Buka undangan** yang muncul hanya
+   kepada orang yang akan berbagi kameranya. Tautan tersebut membuka halaman
+   kuis dengan judul dan tombol yang sesuai.
 3. Penerima membuka undangan, membaca pemberitahuan, menekan tombol persetujuan,
    dan menyetujui izin kamera dari browser.
 4. Live tampil pada halaman desktop. Tekan **Hentikan sesi** untuk mengakhiri
