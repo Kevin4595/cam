@@ -24,9 +24,8 @@ kamera browser. Bagikan undangan hanya kepada orang yang memang setuju.
 2. Bagikan tautan **Kuis Basic Matematika — Buka undangan** yang muncul hanya
    kepada orang yang akan berbagi kameranya. Tautan tersebut membuka halaman
    kuis dengan judul dan tombol yang sesuai.
-3. Penerima dapat memilih **Coba kuis tanpa kamera** untuk menjawab soal tanpa
-   meminta akses kamera atau membagikan video. Untuk live, penerima menekan
-   **Mulai kuis** dan menyetujui permintaan izin kamera dari browser.
+3. Penerima membuka undangan, membaca pemberitahuan, menekan **Mulai kuis**,
+   lalu menyetujui permintaan izin kamera dari browser.
 4. Live tampil pada halaman desktop. Tekan **Hentikan sesi** untuk mengakhiri
    berbagi kamera.
 5. Setelah kamera penerima menyala, kuis 10 soal matematika dasar akan muncul.
