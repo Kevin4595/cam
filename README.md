@@ -1,79 +1,108 @@
 # Website kamera dengan persetujuan
 
-Website ini membuat tautan undangan privat untuk sesi kamera WebRTC.
-Orang yang membuka undangan perlu menekan tombol berbagi dan menyetujui prompt
-kamera browser. Video live dikirim langsung antar-browser; aplikasi tidak
-merekam atau menyimpan videonya.
+Website statis ini di-host oleh GitHub Pages. Firebase Realtime Database dipakai
+hanya untuk pertukaran sinyal WebRTC; video dikirim langsung antar-browser dan
+tidak direkam atau disimpan oleh aplikasi.
 
-## Publikasikan gratis dengan Netlify + Render
+Orang yang membuka undangan harus menekan tombol berbagi dan menyetujui prompt
+kamera browser. Bagikan tautan undangan hanya kepada orang yang setuju.
 
-Publikasi ini memerlukan akun Netlify, Render, dan GitHub. Saya tidak bisa masuk
-atau membuat layanan di akun Anda. Jangan kirim kata sandi, token, atau private
-key lewat chat.
+## Publikasi gratis
 
-### 1. Unggah proyek ke GitHub
+Deployment ini menggunakan GitHub Pages dan Firebase Spark. Paket Spark
+Realtime Database memiliki kuota gratis **1 GB penyimpanan** dan **10 GB
+unduhan per bulan**. Menurut Firebase, Spark tidak meminta informasi pembayaran
+untuk produk gratis. Jangan meng-upgrade proyek ke Blaze atau menambahkan
+informasi tagihan jika ingin menjaga penggunaan tanpa pembayaran.
 
-1. Buat repository baru di GitHub.
-2. Unggah file proyek berikut ke repository, dengan struktur folder tetap sama:
-   `.gitignore`, `README.md`, `hack.py`, `build_site.py`, `netlify.toml`,
-   `render.yaml`, `requirements.txt`, `requirements-build.txt`, dan folder
-   `deploy/`.
-3. Jangan unggah folder `.venv` atau folder hasil build `site/`.
+### 1. Buat proyek Firebase tanpa menambahkan billing
 
-### 2. Deploy backend signaling di Render
+1. Buka [Firebase Console](https://console.firebase.google.com/) dengan akun
+   Google Anda, lalu buat project baru. Lewati pengaturan Google Analytics jika
+   tidak diperlukan. Jangan pilih paket Blaze.
+2. Di project, pilih **Add app → Web** dan daftarkan aplikasi web. Salin objek
+   `firebaseConfig` yang ditampilkan. Ini konfigurasi aplikasi web publik,
+   bukan kata sandi atau private key.
+3. Buka **Authentication → Sign-in method** dan aktifkan provider **Anonymous**.
+   Setelah GitHub Pages aktif, tambahkan `kevin4595.github.io` tanpa skema
+   maupun path ke **Authentication → Settings → Authorized domains**.
+4. Buka **Realtime Database → Create database** dan buat database pada mode
+   locked/secure.
+5. Pada tab **Rules**, tempel seluruh isi [`database.rules.json`](./database.rules.json)
+   lalu klik **Publish**. Jangan menggantinya dengan aturan yang mengizinkan
+   pembacaan atau penulisan publik tanpa autentikasi.
 
-1. Masuk ke [Render](https://render.com/) dan pilih **New → Blueprint**.
-2. Hubungkan repository GitHub proyek ini.
-3. Render akan membaca `render.yaml`; pilih **Apply** untuk membuat web service.
-   Blueprint memasang dependensi, menjalankan satu worker, dan memeriksa
-   `/healthz`.
-4. Tunggu deploy selesai. Di halaman service Render, pastikan statusnya **Live**
-   dan buka URL HTTPS yang diberikan, misalnya
-   `https://camera-consent-backend.onrender.com/healthz`. Hasil yang benar:
-   `{"status":"ok"}`. Salin origin domainnya saja, misalnya
-   `https://camera-consent-backend.onrender.com`.
+### 2. Tambahkan konfigurasi Firebase ke GitHub
 
-### 3. Deploy halaman di Netlify
+1. Buka repository proyek
+   [`Kevin4595/cam`](https://github.com/Kevin4595/cam), lalu pilih
+   **Settings → Secrets and variables → Actions → Variables**.
+2. Tambahkan repository variable bernama `FIREBASE_CONFIG`.
+3. Isikan objek JSON `firebaseConfig` yang disalin dari Firebase console, contoh
+   formatnya:
 
-1. Masuk ke [Netlify](https://app.netlify.com/) dan pilih **Add new site →
-   Import an existing project**.
-2. Hubungkan repository GitHub yang sama. `netlify.toml` mengatur perintah
-   build dan folder publik secara otomatis.
-3. Di **Site configuration → Environment variables**, tambahkan:
-
-   ```text
-   SIGNALING_ORIGIN=https://camera-consent-backend.onrender.com
+   ```json
+   {
+     "apiKey": "API_KEY_DARI_FIREBASE",
+     "authDomain": "PROJECT_ID.firebaseapp.com",
+     "databaseURL": "https://PROJECT_ID-default-rtdb.REGION.firebasedatabase.app",
+     "projectId": "PROJECT_ID",
+     "appId": "APP_ID"
+   }
    ```
 
-   Ganti contoh tersebut dengan origin HTTPS Render Anda, tanpa path dan tanpa
-   garis miring di bagian akhir.
-4. Jalankan **Trigger deploy → Deploy site**. Tunggu hingga status deploy sukses.
-5. Buka URL HTTPS Netlify, klik **Buat sesi dan tautan undangan**, lalu bagikan
-   tautan privat yang dihasilkan. Tautan kamera bekerja di browser ponsel maupun
-   desktop melalui HTTPS.
+   Pakai nilai asli dari console, termasuk `databaseURL` yang tepat untuk region
+   database Anda. Jangan masukkan service-account JSON, private key, atau
+   kredensial administrator ke variable ini.
 
-### 4. Uji alur sesi
+### 3. Aktifkan GitHub Pages
 
-1. Buka situs Netlify di desktop dan buat sesi.
-2. Kirim undangan yang dihasilkan hanya kepada orang yang memang setuju berbagi
-   kameranya.
-3. Penerima membuka undangan, membaca pemberitahuan, menekan tombol persetujuan,
+1. Di repository, buka **Settings → Pages**.
+2. Pada **Build and deployment → Source**, pilih **GitHub Actions**.
+3. Buka tab **Actions**, pilih workflow **Publish website**, lalu tekan
+   **Run workflow**. Workflow juga berjalan otomatis setiap kali ada perubahan
+   di branch `main`.
+4. Tunggu sampai workflow selesai dengan status sukses. URL situs akan berbentuk
+   `https://kevin4595.github.io/cam/`.
+
+Jika variable Firebase belum ada saat workflow berjalan, build menampilkan
+halaman tanpa fungsi sesi. Tambahkan variable terlebih dahulu, lalu jalankan
+workflow kembali.
+
+### 4. Gunakan undangan kamera
+
+1. Buka URL GitHub Pages di desktop dan klik **Buat sesi dan tautan undangan**.
+2. Bagikan tautan privat yang dibuat hanya kepada orang yang akan berbagi kamera.
+3. Penerima membuka tautan, membaca pemberitahuan, menekan tombol persetujuan,
    lalu menyetujui izin kamera yang ditampilkan browser.
-4. Live akan tampil di halaman desktop. Tekan **Hentikan sesi** untuk mengakhiri
-   berbagi.
+4. Live tampil pada halaman pengundang. Tekan **Hentikan sesi** untuk mengakhiri
+   sesi.
 
-## Batasan layanan gratis
+## Batasan dan keamanan
 
-- Backend Render pada paket gratis dapat tidur saat tidak digunakan, sehingga
-  kunjungan pertama bisa lambat. Restart atau tidur dapat menghapus sesi yang
-  sedang menunggu karena state signaling sementara disimpan di memori. Jangan
-  gunakan untuk sesi yang memerlukan ketersediaan terjamin.
-- Jalankan backend dengan satu worker dan satu instance. Beberapa worker tidak
-  dapat berbagi state sesi ini.
-- Sesi undangan kedaluwarsa setelah satu jam tidak aktif. Siapa pun yang memiliki
-  tautan undangan privat dapat mencoba bergabung.
-- Video peer-to-peer tidak melewati server Netlify atau server signaling.
-  Sebagian jaringan ketat mungkin membutuhkan TURN; STUN saja tidak menjamin
-  semua jaringan dapat tersambung.
-- Jangan aktifkan pencatatan header `Authorization` pada proxy/backend; header
-  tersebut membawa token sesi undangan.
+- Tidak ada backend Render atau layanan berbayar yang digunakan. Video WebRTC
+  tidak melewati GitHub Pages atau Firebase.
+- Database Rules hanya memberi akses kepada pengguna Firebase yang sudah masuk
+  secara anonim, dengan ID sesi acak 128-bit. Setiap sesi kedaluwarsa setelah
+  satu jam dan dihapus saat pengundang menutup koneksi atau menekan tombol
+  berhenti.
+- Bila halaman desktop ditutup paksa atau koneksi terputus, Firebase menghapus
+  sesi melalui `onDisconnect`. Data yang dibuat di Firebase dapat diperiksa dan
+  dihapus dari console.
+- Firebase Spark memberi kuota gratis yang terbatas. Jika kuota terlampaui,
+  layanan gratis dapat berhenti sampai kuota pulih; jangan aktifkan billing bila
+  Anda tidak ingin biaya.
+- STUN digunakan untuk koneksi peer-to-peer. Sebagian jaringan ketat mungkin
+  tidak tersambung tanpa server TURN; TURN pihak ketiga bisa berbayar.
+- Halaman tersedia publik, tetapi kamera tidak menyala otomatis: penerima harus
+  menyetujui pemberitahuan situs dan izin kamera dari browser.
+
+## Mencoba build secara lokal
+
+```powershell
+$env:FIREBASE_CONFIG = '{"apiKey":"...","authDomain":"...","databaseURL":"...","projectId":"...","appId":"..."}'
+& "C:\path\to\python.exe" build_site.py
+```
+
+Lalu sajikan folder `site` menggunakan server HTTP lokal. Untuk mencoba kamera
+dari internet, gunakan situs GitHub Pages HTTPS.

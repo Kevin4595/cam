@@ -1,24 +1,4 @@
 import json
-import os
-import re
-import time
-import asyncio
-import secrets
-from typing import Literal
-
-from fastapi import FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
-
-
-ROOM_PATTERN = re.compile(r"^[0-9a-f]{32}$")
-SIGNAL_TYPES = {"description", "ice", "bye"}
-ROOMS = {}
-ROOMS_LOCK = asyncio.Lock()
-ROOM_TTL_SECONDS = 3600
-MAX_SIGNAL_BYTES = 65536
-MAX_QUEUED_SIGNALS = 200
-MAX_ACTIVE_ROOMS = 1000
 
 
 def page_for(role):
@@ -27,6 +7,7 @@ def page_for(role):
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://firebaseinstallations.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebasedatabase.app; media-src 'self' blob:">
   <title>Sesi kamera dengan izin</title>
   <style>
     :root {{
@@ -120,6 +101,10 @@ def page_for(role):
     <button id="stop-session" type="button" hidden>Hentikan sesi</button>
     <p id="status" role="status" aria-live="polite">Memuat...</p>
   </main>
+  <script src="./firebase-config.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
   <script>
     const role = {json.dumps(role)};
     const status = document.querySelector("#status");
@@ -129,24 +114,41 @@ def page_for(role):
     const remoteVideo = document.querySelector("#remote-video");
     const localVideo = document.querySelector("#local-video");
     let room = null;
+    let roomRef = null;
+    let signalsRef = null;
     let peer = null;
     let localStream = null;
-    let cursor = 0;
-    let polling = false;
+    let signalListener = null;
+    let removedListener = null;
+    let auth = null;
+    let database = null;
 
     function setStatus(message) {{
       status.textContent = message;
     }}
 
-    async function sendSignal(type, data = null) {{
-      const response = await fetch("/api/signal", {{
-        method: "POST",
-        headers: {{ "Content-Type": "application/json" }},
-        body: JSON.stringify({{ room, role, type, data }})
-      }});
-      if (!response.ok) {{
-        throw new Error(`Gagal mengirim sinyal (${{response.status}}).`);
+    function firebaseConfigured() {{
+      const config = window.FIREBASE_CONFIG;
+      return config && config.apiKey && config.authDomain &&
+        config.databaseURL && config.projectId && config.appId;
+    }}
+
+    async function ensureSignedIn() {{
+      if (!firebaseConfigured() || !auth || !database) {{
+        throw new Error("Firebase belum dikonfigurasi. Ikuti README untuk membuat proyek Firebase gratis.");
       }}
+      if (!auth.currentUser) {{
+        await auth.signInAnonymously();
+      }}
+      return auth.currentUser;
+    }}
+
+    async function sendSignal(type, data = null) {{
+      if (!signalsRef) {{
+        throw new Error("Sesi belum siap.");
+      }}
+      const value = data && typeof data.toJSON === "function" ? data.toJSON() : data;
+      await signalsRef.push({{ from: role, type, data: value || {{ notice: "session-ended" }} }});
     }}
 
     async function handleSignal(signal) {{
@@ -174,21 +176,28 @@ def page_for(role):
       }}
     }}
 
-    async function pollSignals() {{
-      while (polling) {{
-        const query = new URLSearchParams({{ role, cursor: String(cursor) }});
-        const response = await fetch(`/api/poll?${{query}}`, {{
-          headers: {{ "Authorization": `Bearer ${{room}}` }}
-        }});
-        if (!response.ok) {{
-          throw new Error(`Koneksi sinyal terputus (${{response.status}}).`);
+    function watchSignals() {{
+      signalsRef = roomRef.child("signals");
+      signalListener = (snapshot) => {{
+        const signal = snapshot.val();
+        if (signal && signal.from !== role) {{
+          handleSignal(signal).catch((error) => setStatus(`Sinyal gagal diproses: ${{error.message}}`));
         }}
-        const result = await response.json();
-        cursor = result.cursor;
-        for (const signal of result.signals) {{
-          await handleSignal(signal);
+      }};
+      removedListener = () => {{
+        if (role === "camera") {{
+          stopSession(false);
+          setStatus("Sesi telah berakhir.");
         }}
-      }}
+      }};
+      signalsRef.on("child_added", signalListener, (error) => {{
+        setStatus(`Koneksi signaling gagal: ${{error.message}}`);
+      }});
+      roomRef.on("value", (snapshot) => {{
+        if (!snapshot.exists()) {{
+          removedListener();
+        }}
+      }}, (error) => setStatus(`Akses sesi ditolak: ${{error.message}}`));
     }}
 
     function makePeer() {{
@@ -225,12 +234,21 @@ def page_for(role):
     }}
 
     async function startViewerSession() {{
-      const response = await fetch("/api/session", {{ method: "POST" }});
-      if (!response.ok) {{
-        throw new Error(`Gagal membuat sesi (${{response.status}}).`);
-      }}
-      ({{ room }} = await response.json());
-      const invitation = `${{location.origin}}/camera#${{room}}`;
+      const user = await ensureSignedIn();
+      room = Array.from(
+        crypto.getRandomValues(new Uint8Array(16)),
+        (byte) => byte.toString(16).padStart(2, "0")
+      ).join("");
+      roomRef = database.ref(`rooms/${{room}}`);
+      await roomRef.set({{
+        owner: user.uid,
+        expiresAt: Date.now() + 60 * 60 * 1000,
+        signals: {{}}
+      }});
+      await roomRef.onDisconnect().remove();
+      const inviteUrl = new URL("./camera.html", location.href);
+      inviteUrl.hash = room;
+      const invitation = inviteUrl.href;
       document.querySelector("#invite").replaceChildren(
         document.createTextNode("Tautan pribadi: "),
         Object.assign(document.createElement("a"), {{
@@ -250,10 +268,8 @@ def page_for(role):
         }}
       }});
       document.querySelector("#invite").append(" ", copyButton);
-
       makePeer();
-      polling = true;
-      pollSignals().catch((error) => setStatus(error.message));
+      watchSignals();
       stopButton.hidden = false;
       document.querySelector("#create-session").disabled = true;
       setStatus("Menunggu orang yang diundang menyetujui dan menyalakan kameranya...");
@@ -276,19 +292,30 @@ def page_for(role):
       room = inviteRoom;
       const startButton = document.querySelector("#start-camera");
       startButton.disabled = true;
-      setStatus("Menunggu persetujuan kamera dari browser...");
+      setStatus("Menunggu izin kamera dari browser...");
       try {{
         localStream = await navigator.mediaDevices.getUserMedia({{
           audio: false,
           video: true
         }});
         localVideo.srcObject = localStream;
+        await ensureSignedIn();
+        room = inviteRoom;
+        roomRef = database.ref(`rooms/${{room}}`);
+        const session = await roomRef.once("value");
+        if (!session.exists() || session.child("expiresAt").val() <= Date.now()) {{
+          throw new Error("Undangan sudah kedaluwarsa atau sesi tidak tersedia.");
+        }}
+        watchSignals();
         makePeer();
-        polling = true;
-        pollSignals().catch((error) => setStatus(error.message));
         stopButton.hidden = false;
         setStatus("Kamera aktif. Menghubungkan live ke desktop pengundang...");
       }} catch (error) {{
+        if (localStream) {{
+          localStream.getTracks().forEach((track) => track.stop());
+          localStream = null;
+          localVideo.srcObject = null;
+        }}
         startButton.disabled = false;
         if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {{
           setStatus("Izin kamera ditolak. Tidak ada video yang dibagikan.");
@@ -301,9 +328,15 @@ def page_for(role):
     }}
 
     function stopSession(notifyPeer = true) {{
-      polling = false;
+      const endedRoomRef = roomRef;
       if (notifyPeer && room) {{
-        sendSignal("bye").catch((error) => setStatus(error.message));
+        sendSignal("bye").catch((error) => setStatus(`Gagal memberi tahu sesi lain: ${{error.message}}`));
+      }}
+      if (signalsRef && signalListener) {{
+        signalsRef.off("child_added", signalListener);
+      }}
+      if (roomRef && removedListener) {{
+        roomRef.off("value");
       }}
       if (peer) {{
         peer.close();
@@ -316,13 +349,26 @@ def page_for(role):
       if (localVideo) localVideo.srcObject = null;
       if (remoteVideo) remoteVideo.srcObject = null;
       stopButton.hidden = true;
+      signalsRef = null;
+      signalListener = null;
+      removedListener = null;
       if (role === "camera") {{
         document.querySelector("#start-camera").disabled = false;
       }} else {{
         document.querySelector("#create-session").disabled = false;
         document.querySelector("#invite").replaceChildren();
-        room = null;
+        if (endedRoomRef) {{
+          if (notifyPeer) {{
+            setTimeout(() => {{
+              endedRoomRef.remove().catch((error) => setStatus(`Sesi gagal dibersihkan: ${{error.message}}`));
+            }}, 1000);
+          }} else {{
+            endedRoomRef.remove().catch((error) => setStatus(`Sesi gagal dibersihkan: ${{error.message}}`));
+          }}
+        }}
       }}
+      room = null;
+      roomRef = null;
       setStatus("Sesi dihentikan.");
     }}
 
@@ -341,168 +387,21 @@ def page_for(role):
     }}
     stopButton.addEventListener("click", () => stopSession());
     window.addEventListener("pagehide", () => {{
-      polling = false;
       if (localStream) localStream.getTracks().forEach((track) => track.stop());
       if (peer) peer.close();
     }});
+    if (firebaseConfigured()) {{
+      try {{
+        firebase.initializeApp(window.FIREBASE_CONFIG);
+        auth = firebase.auth();
+        database = firebase.database();
+      }} catch (error) {{
+        setStatus(`Inisialisasi Firebase gagal: ${{error.message}}`);
+      }}
+    }} else {{
+      setStatus("Firebase belum dikonfigurasi. Lihat README untuk menyiapkan website gratis.");
+    }}
   </script>
 </body>
 </html>
 """
-
-
-def clean_expired_rooms():
-    cutoff = time.monotonic() - ROOM_TTL_SECONDS
-    expired = [
-        room_id
-        for room_id, room_data in ROOMS.items()
-        if room_data["last_seen"] < cutoff
-    ]
-    for room_id in expired:
-        del ROOMS[room_id]
-
-
-class SignalRequest(BaseModel):
-    room: str
-    role: Literal["viewer", "camera"]
-    type: Literal["description", "ice", "bye"]
-    data: dict | None = None
-
-
-app = FastAPI(docs_url=None, redoc_url=None)
-
-
-@app.middleware("http")
-async def add_security_headers(request: Request, call_next):
-    response = await call_next(request)
-    response.headers["Cache-Control"] = "no-store"
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["Referrer-Policy"] = "no-referrer"
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
-        "connect-src 'self'; media-src 'self' blob:"
-    )
-    return response
-
-
-@app.get("/", response_class=HTMLResponse)
-async def viewer_page():
-    return page_for("viewer")
-
-
-@app.get("/camera", response_class=HTMLResponse)
-async def camera_page():
-    return page_for("camera")
-
-
-@app.get("/healthz")
-async def health_check():
-    return {"status": "ok"}
-
-
-@app.post("/api/session")
-async def create_session():
-    async with ROOMS_LOCK:
-        clean_expired_rooms()
-        if len(ROOMS) >= MAX_ACTIVE_ROOMS:
-            raise HTTPException(status_code=503, detail="Server is at session capacity")
-        room_id = secrets.token_hex(16)
-        ROOMS[room_id] = {
-            "signals": [],
-            "event": asyncio.Event(),
-            "last_seen": time.monotonic(),
-        }
-    return {"room": room_id}
-
-
-@app.get("/api/poll")
-async def poll_signals(
-    role: Literal["viewer", "camera"],
-    cursor: int = Query(default=0, ge=0),
-    authorization: str | None = Header(default=None),
-):
-    if authorization is None or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing session token")
-    room = authorization.removeprefix("Bearer ").strip()
-    if not ROOM_PATTERN.fullmatch(room):
-        raise HTTPException(status_code=400, detail="Invalid session")
-
-    deadline = time.monotonic() + 20
-    while True:
-        async with ROOMS_LOCK:
-            clean_expired_rooms()
-            room_data = ROOMS.get(room)
-            if room_data is None:
-                raise HTTPException(status_code=404, detail="Session not found or expired")
-            room_data["last_seen"] = time.monotonic()
-            available = [
-                signal for signal in room_data["signals"] if signal["cursor"] > cursor
-            ]
-            if available:
-                next_cursor = available[-1]["cursor"]
-                signals = [
-                    {"cursor": signal["cursor"], "type": signal["type"], "data": signal["data"]}
-                    for signal in available
-                    if signal["to"] == role
-                ]
-                return {"cursor": next_cursor, "signals": signals}
-            room_data["event"].clear()
-            event = room_data["event"]
-
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            return {"cursor": cursor, "signals": []}
-        try:
-            await asyncio.wait_for(event.wait(), timeout=remaining)
-        except TimeoutError:
-            return {"cursor": cursor, "signals": []}
-
-
-@app.post("/api/signal")
-async def post_signal(payload: SignalRequest, request: Request):
-    content_length = request.headers.get("content-length")
-    if content_length:
-        try:
-            if int(content_length) > MAX_SIGNAL_BYTES:
-                raise HTTPException(status_code=413, detail="Signal is too large")
-        except ValueError as error:
-            raise HTTPException(status_code=400, detail="Invalid content length") from error
-    if not ROOM_PATTERN.fullmatch(payload.room):
-        raise HTTPException(status_code=400, detail="Invalid session")
-    if payload.type == "description" and (
-        payload.data is None
-        or payload.data.get("type") not in {"offer", "answer"}
-        or not isinstance(payload.data.get("sdp"), str)
-    ):
-        raise HTTPException(status_code=400, detail="Invalid session description")
-    if payload.type == "ice" and payload.data is None:
-        raise HTTPException(status_code=400, detail="Invalid ICE candidate")
-
-    async with ROOMS_LOCK:
-        clean_expired_rooms()
-        room_data = ROOMS.get(payload.room)
-        if room_data is None:
-            raise HTTPException(status_code=404, detail="Session not found or expired")
-        signals = room_data["signals"]
-        if len(signals) >= MAX_QUEUED_SIGNALS:
-            raise HTTPException(status_code=429, detail="Too many queued signals")
-        cursor = signals[-1]["cursor"] + 1 if signals else 1
-        signals.append(
-            {
-                "cursor": cursor,
-                "to": "camera" if payload.role == "viewer" else "viewer",
-                "type": payload.type,
-                "data": payload.data,
-            }
-        )
-        room_data["last_seen"] = time.monotonic()
-        room_data["event"].set()
-    return {"ok": True}
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    host = os.environ.get("CAMERA_DEMO_HOST", "127.0.0.1")
-    port = int(os.environ.get("CAMERA_DEMO_PORT", "8000"))
-    uvicorn.run(app, host=host, port=port)

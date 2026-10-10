@@ -1,36 +1,57 @@
+import json
 import os
 from pathlib import Path
-from urllib.parse import urlsplit
 
 from hack import page_for
 
 
 ROOT = Path(__file__).resolve().parent
 SITE = ROOT / "site"
-signaling_origin = os.environ.get("SIGNALING_ORIGIN", "").rstrip("/")
-parsed_origin = urlsplit(signaling_origin)
+FIREBASE_CONFIG_KEYS = {
+    "apiKey",
+    "authDomain",
+    "databaseURL",
+    "projectId",
+    "appId",
+    "messagingSenderId",
+    "storageBucket",
+}
 
-if (
-    parsed_origin.scheme != "https"
-    or not parsed_origin.netloc
-    or parsed_origin.path not in ("", "/")
-    or parsed_origin.query
-    or parsed_origin.fragment
-    or parsed_origin.username
-    or parsed_origin.password
-):
-    raise SystemExit(
-        "Set SIGNALING_ORIGIN to the HTTPS origin of the VPS, "
-        "for example https://api.example.com"
+
+def build_site() -> None:
+    raw_config = os.environ.get("FIREBASE_CONFIG", "").strip()
+    firebase_config = None
+    if raw_config:
+        try:
+            supplied_config = json.loads(raw_config)
+        except json.JSONDecodeError as error:
+            raise SystemExit("FIREBASE_CONFIG must contain valid Firebase web-app JSON.") from error
+        if not isinstance(supplied_config, dict):
+            raise SystemExit("FIREBASE_CONFIG must be a JSON object from Firebase console.")
+        firebase_config = {
+            key: value
+            for key, value in supplied_config.items()
+            if key in FIREBASE_CONFIG_KEYS and isinstance(value, str)
+        }
+        required_keys = {"apiKey", "authDomain", "databaseURL", "projectId", "appId"}
+        missing_keys = sorted(required_keys - firebase_config.keys())
+        if missing_keys:
+            raise SystemExit(
+                "FIREBASE_CONFIG is missing required Firebase web-app fields: "
+                + ", ".join(missing_keys)
+            )
+
+    SITE.mkdir(exist_ok=True)
+    (SITE / "index.html").write_text(page_for("viewer"), encoding="utf-8")
+    (SITE / "camera.html").write_text(page_for("camera"), encoding="utf-8")
+    config_json = json.dumps(firebase_config, separators=(",", ":"), ensure_ascii=True)
+    (SITE / "firebase-config.js").write_text(
+        f"window.FIREBASE_CONFIG = {config_json};\n",
+        encoding="utf-8",
     )
+    (SITE / ".nojekyll").write_text("", encoding="utf-8")
+    print("Built static GitHub Pages website.")
 
-SITE.mkdir(exist_ok=True)
-(SITE / "index.html").write_text(page_for("viewer"), encoding="utf-8")
-(SITE / "camera.html").write_text(page_for("camera"), encoding="utf-8")
-(SITE / "_redirects").write_text(
-    f"/api/* {signaling_origin}/api/:splat 200!\n"
-    "/camera /camera.html 200\n"
-    "/* /index.html 200\n",
-    encoding="utf-8",
-)
-print(f"Built Netlify site with signaling proxy to {signaling_origin}")
+
+if __name__ == "__main__":
+    build_site()
