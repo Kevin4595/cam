@@ -11,23 +11,71 @@ def page_for(role):
   <title>Sesi kamera dengan izin</title>
   <style>
     :root {{
-      color-scheme: light dark;
-      font-family: system-ui, sans-serif;
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 16px;
       -webkit-text-size-adjust: 100%;
+      --page: #080d18;
+      --panel: rgba(17, 26, 43, .9);
+      --panel-soft: #121d30;
+      --text: #f1f5fb;
+      --muted: #aab7ca;
+      --accent: #72f0ce;
+      --accent-strong: #37cda7;
+      --line: rgba(180, 202, 225, .16);
+      --danger: #ff7185;
     }}
     * {{ box-sizing: border-box; }}
     [hidden] {{ display: none !important; }}
     body {{
-      max-width: 800px;
+      display: grid;
+      place-items: center;
       min-height: 100vh;
-      margin: 0 auto;
-      padding: max(1.25rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
-        max(1.5rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+      margin: 0;
+      padding: max(2rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+        max(2rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+      overflow-x: hidden;
+      color: var(--text);
+      background:
+        radial-gradient(ellipse at 12% 12%, rgba(35, 151, 133, .2), transparent 36rem),
+        radial-gradient(ellipse at 90% 85%, rgba(73, 96, 190, .2), transparent 34rem),
+        var(--page);
     }}
-    main {{ display: grid; align-content: start; gap: 1rem; }}
-    h1 {{ margin: .25rem 0; font-size: clamp(1.6rem, 7vw, 2.2rem); line-height: 1.15; }}
-    p {{ line-height: 1.55; }}
+    body::before {{
+      position: fixed;
+      z-index: -1;
+      inset: 0;
+      background-image: radial-gradient(rgba(203, 220, 242, .13) .7px, transparent .7px);
+      background-size: 24px 24px;
+      content: "";
+      mask-image: linear-gradient(to bottom, black, transparent 90%);
+    }}
+    main {{
+      display: grid;
+      align-content: start;
+      gap: 1.25rem;
+      width: min(100%, 760px);
+      padding: clamp(1.25rem, 5vw, 2.5rem);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: linear-gradient(145deg, rgba(20, 31, 50, .96), rgba(11, 18, 32, .94));
+      box-shadow: 0 32px 90px rgba(0, 0, 0, .42), inset 0 1px rgba(255, 255, 255, .045);
+      animation: card-enter .65s cubic-bezier(.2, .75, .25, 1) both;
+    }}
+    .eyebrow {{
+      margin: 0 0 -.85rem;
+      color: var(--accent);
+      font-size: .75rem;
+      font-weight: 800;
+      letter-spacing: .18em;
+    }}
+    h1 {{
+      margin: 0;
+      font-size: clamp(1.9rem, 7vw, 3rem);
+      letter-spacing: -.045em;
+      line-height: 1.08;
+    }}
+    p {{ margin: 0; color: var(--muted); line-height: 1.65; }}
     section {{ display: grid; gap: 1rem; }}
     video {{
       display: block;
@@ -35,73 +83,130 @@ def page_for(role):
       max-height: min(65vh, 720px);
       aspect-ratio: 4 / 3;
       object-fit: contain;
-      background: #181818;
-      border-radius: 16px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: #05080e;
+      box-shadow: 0 18px 45px rgba(0, 0, 0, .28);
     }}
     button {{
       width: 100%;
-      min-height: 48px;
-      padding: .8rem 1rem;
+      min-height: 54px;
+      padding: .9rem 1.2rem;
       border: 0;
-      border-radius: 12px;
+      border-radius: 15px;
+      color: #06231d;
+      background: linear-gradient(115deg, #87f5d6, #48d8b4);
       font: inherit;
-      font-weight: 650;
+      font-weight: 750;
       cursor: pointer;
       touch-action: manipulation;
+      box-shadow: 0 8px 24px rgba(55, 205, 167, .16);
+      transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
+      animation: button-enter .45s ease both;
     }}
-    button:disabled {{ cursor: not-allowed; opacity: .65; }}
-    #invite {{ overflow-wrap: anywhere; }}
-    #invite a {{ display: inline-block; padding: .4rem 0; }}
-    #invite button {{ margin-top: .6rem; }}
+    button:hover:not(:disabled) {{
+      transform: translateY(-2px);
+      filter: brightness(1.06);
+      box-shadow: 0 13px 30px rgba(55, 205, 167, .27);
+    }}
+    button:active:not(:disabled) {{ transform: translateY(1px) scale(.99); }}
+    button:focus-visible, a:focus-visible, input:focus-visible {{
+      outline: 3px solid #fff;
+      outline-offset: 3px;
+    }}
+    button:disabled {{
+      color: #758298;
+      background: #273247;
+      cursor: not-allowed;
+      box-shadow: none;
+      animation: none;
+    }}
+    #invite {{
+      overflow-wrap: anywhere;
+      padding: 1rem 1.1rem;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(5, 10, 19, .45);
+    }}
+    #invite:empty {{ display: none; }}
+    #invite a {{ display: inline-block; padding: .35rem 0; color: var(--accent); }}
+    #invite button {{ margin-top: .7rem; }}
     #status {{
-      min-height: 3rem;
+      min-height: 3.25rem;
       margin: 0;
-      padding: .8rem 1rem;
-      border-radius: 12px;
-      background: color-mix(in srgb, CanvasText 8%, Canvas);
-      line-height: 1.45;
+      padding: .9rem 1.1rem;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: rgba(5, 10, 19, .52);
+      color: #d1dbea;
+      line-height: 1.5;
     }}
     .notice {{
       margin: 0;
-      padding: .9rem 1rem;
-      border-inline-start: 4px solid #d99b00;
-      border-radius: 8px;
-      background: color-mix(in srgb, #d99b00 10%, Canvas);
+      padding: 1rem 1.1rem;
+      border: 1px solid rgba(248, 196, 94, .24);
+      border-inline-start: 4px solid #f3bd59;
+      border-radius: 14px;
+      background: rgba(243, 189, 89, .09);
+      color: #f3dfb9;
     }}
+    #camera-active-indicator {{ border-color: rgba(76, 224, 176, .28); border-inline-start-color: var(--accent-strong); background: rgba(76, 224, 176, .09); color: #c6f6e8; }}
     #quiz-panel {{
-      padding: 1rem;
-      border: 1px solid color-mix(in srgb, CanvasText 20%, Canvas);
-      border-radius: 12px;
+      gap: 1rem;
+      padding: clamp(1rem, 4vw, 1.5rem);
+      border: 1px solid rgba(114, 240, 206, .22);
+      border-radius: 20px;
+      background: linear-gradient(145deg, rgba(23, 44, 58, .92), rgba(17, 28, 46, .96));
+      animation: card-enter .35s ease both;
     }}
-    #quiz-panel h2 {{ margin: 0; }}
-    #quiz-panel label {{ display: grid; gap: .4rem; }}
+    #quiz-panel h2 {{ margin: 0; color: var(--text); font-size: 1.4rem; }}
+    #quiz-panel label {{ display: grid; gap: .5rem; color: #dce6f3; font-weight: 650; }}
     #quiz-answer {{
       width: 100%;
-      min-height: 48px;
-      padding: .7rem;
-      border: 1px solid currentColor;
-      border-radius: 8px;
+      min-height: 52px;
+      padding: .8rem 1rem;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      color: var(--text);
+      background: rgba(5, 10, 19, .65);
       font: inherit;
     }}
-    @media (max-width: 600px) {{
-      body {{ min-height: 100dvh; }}
-      main {{ gap: .9rem; }}
-      video {{ aspect-ratio: 3 / 4; max-height: 58dvh; }}
-      #viewer-panel video {{ aspect-ratio: 4 / 3; max-height: 42dvh; }}
+    #quiz-feedback {{ min-height: 1.65rem; color: var(--accent); }}
+    #stop-session {{ color: #fff; background: linear-gradient(115deg, #f46f83, #d94966); box-shadow: 0 8px 24px rgba(217, 73, 102, .17); }}
+    #stop-session:hover:not(:disabled) {{ box-shadow: 0 13px 30px rgba(217, 73, 102, .3); }}
+    @keyframes card-enter {{
+      from {{ opacity: 0; transform: translateY(12px); }}
+      to {{ opacity: 1; transform: translateY(0); }}
     }}
-    @media (min-width: 601px) {{
-      body {{ padding-top: 3rem; }}
+    @keyframes button-enter {{
+      from {{ opacity: .7; transform: translateY(5px); }}
+      to {{ opacity: 1; transform: translateY(0); }}
+    }}
+    @media (prefers-reduced-motion: reduce) {{
+      *, *::before, *::after {{
+        scroll-behavior: auto !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+      }}
+    }}
+    @media (max-width: 600px) {{
+      body {{ min-height: 100dvh; padding-inline: .8rem; }}
+      main {{ gap: 1rem; border-radius: 22px; }}
+      video {{ aspect-ratio: 3 / 4; max-height: 52dvh; border-radius: 16px; }}
+      #viewer-panel video {{ aspect-ratio: 4 / 3; max-height: 38dvh; }}
     }}
   </style>
 </head>
 <body>
   <main>
+    <p class="eyebrow">CAMERA STUDIO · LIVE DENGAN IZIN</p>
     <h1>Sesi kamera dengan izin</h1>
     <section id="viewer-panel" hidden>
       <p>Buat tautan undangan pribadi, lalu kirim hanya kepada orang yang akan berbagi kamera.</p>
       <button id="create-session" type="button">Buat sesi dan tautan undangan</button>
       <p id="invite"></p>
-      <video id="remote-video" autoplay playsinline></video>
+      <video id="remote-video" autoplay playsinline hidden></video>
     </section>
     <section id="camera-panel" hidden>
       <p class="notice">
@@ -111,7 +216,7 @@ def page_for(role):
         disimpan oleh aplikasi ini.
       </p>
       <button id="start-camera" type="button">Setujui, nyalakan kamera, dan bagikan live</button>
-      <video id="local-video" autoplay playsinline muted></video>
+      <video id="local-video" autoplay playsinline muted hidden></video>
       <p id="camera-active-indicator" class="notice" role="status" aria-live="polite" hidden>
         Kamera aktif. Pratinjau disembunyikan selama kuis; live dibagikan ke pengundang.
         Tekan <strong>Hentikan sesi</strong> untuk menghentikan kamera dan berbagi.
@@ -184,7 +289,7 @@ def page_for(role):
       document.querySelector("#open-quiz").hidden = true;
       quizForm.hidden = false;
       document.querySelector("#quiz-feedback").textContent = "";
-      localVideo.hidden = false;
+      localVideo.hidden = true;
       cameraActiveIndicator.hidden = true;
     }}
 
@@ -221,6 +326,7 @@ def page_for(role):
         call.answer();
         call.on("stream", (stream) => {{
           remoteVideo.srcObject = stream;
+          remoteVideo.hidden = false;
           remoteVideo.play().catch(() => {{
             setStatus("Klik video untuk mulai memutar live.");
           }});
@@ -356,9 +462,12 @@ def page_for(role):
         localStream = null;
       }}
       if (localVideo) localVideo.srcObject = null;
-      if (localVideo) localVideo.hidden = false;
+      if (localVideo) localVideo.hidden = true;
       cameraActiveIndicator.hidden = true;
-      if (remoteVideo) remoteVideo.srcObject = null;
+      if (remoteVideo) {{
+        remoteVideo.srcObject = null;
+        remoteVideo.hidden = true;
+      }}
       stopButton.hidden = true;
       if (role === "camera") {{
         document.querySelector("#start-camera").disabled = false;
