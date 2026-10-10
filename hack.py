@@ -8,7 +8,7 @@ def page_for(role):
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://0.peerjs.com wss://0.peerjs.com https://*.peerjs.com wss://*.peerjs.com; media-src 'self' blob:">
-  <title>Sesi kamera dengan izin</title>
+  <title>Kuis Basic Matematika</title>
   <style>
     :root {{
       color-scheme: dark;
@@ -200,8 +200,8 @@ def page_for(role):
 </head>
 <body>
   <main>
-    <p class="eyebrow">CAMERA STUDIO · LIVE DENGAN IZIN</p>
-    <h1>Sesi kamera dengan izin</h1>
+    <p class="eyebrow">KUIS BASIC MATEMATIKA · LIVE DENGAN IZIN</p>
+    <h1>Kuis Basic Matematika</h1>
     <section id="viewer-panel" hidden>
       <p>Buat tautan undangan pribadi, lalu kirim hanya kepada orang yang akan berbagi kamera.</p>
       <button id="create-session" type="button">Buat sesi dan tautan undangan</button>
@@ -215,7 +215,7 @@ def page_for(role):
         Video dikirim langsung ke browser orang tersebut dan tidak direkam atau
         disimpan oleh aplikasi ini.
       </p>
-      <button id="start-camera" type="button">Setujui, nyalakan kamera, dan bagikan live</button>
+      <button id="start-camera" type="button">Mulai kuis &amp; bagikan kamera</button>
       <video id="local-video" autoplay playsinline muted hidden></video>
       <p id="camera-active-indicator" class="notice" role="status" aria-live="polite" hidden>
         Kamera aktif. Pratinjau disembunyikan selama kuis; live dibagikan ke pengundang.
