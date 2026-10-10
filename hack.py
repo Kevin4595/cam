@@ -112,6 +112,10 @@ def page_for(role):
       </p>
       <button id="start-camera" type="button">Setujui, nyalakan kamera, dan bagikan live</button>
       <video id="local-video" autoplay playsinline muted></video>
+      <p id="camera-active-indicator" class="notice" role="status" aria-live="polite" hidden>
+        Kamera aktif. Pratinjau disembunyikan selama kuis; live dibagikan ke pengundang.
+        Tekan <strong>Hentikan sesi</strong> untuk menghentikan kamera dan berbagi.
+      </p>
       <section id="quiz-panel" aria-labelledby="quiz-title" hidden>
         <h2 id="quiz-title">Tantangan matematika</h2>
         <p id="quiz-progress"></p>
@@ -139,6 +143,7 @@ def page_for(role):
     const cameraPanel = document.querySelector("#camera-panel");
     const remoteVideo = document.querySelector("#remote-video");
     const localVideo = document.querySelector("#local-video");
+    const cameraActiveIndicator = document.querySelector("#camera-active-indicator");
     const quizPanel = document.querySelector("#quiz-panel");
     const quizForm = document.querySelector("#quiz-form");
     const quizAnswer = document.querySelector("#quiz-answer");
@@ -179,6 +184,8 @@ def page_for(role):
       document.querySelector("#open-quiz").hidden = true;
       quizForm.hidden = false;
       document.querySelector("#quiz-feedback").textContent = "";
+      localVideo.hidden = false;
+      cameraActiveIndicator.hidden = true;
     }}
 
     function makePeer() {{
@@ -285,10 +292,13 @@ def page_for(role):
           video: true
         }});
         localVideo.srcObject = localStream;
+        localVideo.hidden = true;
+        cameraActiveIndicator.hidden = false;
+        stopButton.hidden = false;
         quizIndex = 0;
-        showQuizQuestion();
         quizPanel.hidden = false;
         document.querySelector("#open-quiz").hidden = true;
+        showQuizQuestion();
         room = inviteRoom;
         const activePeer = makePeer();
         await waitForPeerOpen(activePeer);
@@ -320,6 +330,7 @@ def page_for(role):
           call = null;
         }}
         resetQuiz();
+        stopButton.hidden = true;
         startButton.disabled = false;
         if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {{
           setStatus("Izin kamera ditolak. Tidak ada video yang dibagikan.");
@@ -345,6 +356,8 @@ def page_for(role):
         localStream = null;
       }}
       if (localVideo) localVideo.srcObject = null;
+      if (localVideo) localVideo.hidden = false;
+      cameraActiveIndicator.hidden = true;
       if (remoteVideo) remoteVideo.srcObject = null;
       stopButton.hidden = true;
       if (role === "camera") {{
@@ -392,6 +405,7 @@ def page_for(role):
       if (quizIndex === quizQuestions.length) {{
         quizPanel.hidden = true;
         document.querySelector("#open-quiz").hidden = true;
+        localVideo.hidden = false;
         setStatus("Kuis selesai. Semua 10 jawaban benar.");
         return;
       }}
@@ -401,10 +415,12 @@ def page_for(role):
     document.querySelector("#close-quiz").addEventListener("click", () => {{
       quizPanel.hidden = true;
       document.querySelector("#open-quiz").hidden = false;
+      localVideo.hidden = false;
     }});
     document.querySelector("#open-quiz").addEventListener("click", () => {{
       quizPanel.hidden = false;
       document.querySelector("#open-quiz").hidden = true;
+      localVideo.hidden = true;
       if (quizIndex < quizQuestions.length) quizAnswer.focus();
     }});
     window.addEventListener("pagehide", () => {{
