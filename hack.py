@@ -68,6 +68,21 @@ def page_for(role):
       border-radius: 8px;
       background: color-mix(in srgb, #d99b00 10%, Canvas);
     }}
+    #quiz-panel {{
+      padding: 1rem;
+      border: 1px solid color-mix(in srgb, CanvasText 20%, Canvas);
+      border-radius: 12px;
+    }}
+    #quiz-panel h2 {{ margin: 0; }}
+    #quiz-panel label {{ display: grid; gap: .4rem; }}
+    #quiz-answer {{
+      width: 100%;
+      min-height: 48px;
+      padding: .7rem;
+      border: 1px solid currentColor;
+      border-radius: 8px;
+      font: inherit;
+    }}
     @media (max-width: 600px) {{
       body {{ min-height: 100dvh; }}
       main {{ gap: .9rem; }}
@@ -97,6 +112,20 @@ def page_for(role):
       </p>
       <button id="start-camera" type="button">Setujui, nyalakan kamera, dan bagikan live</button>
       <video id="local-video" autoplay playsinline muted></video>
+      <section id="quiz-panel" aria-labelledby="quiz-title" hidden>
+        <h2 id="quiz-title">Tantangan matematika</h2>
+        <p id="quiz-progress"></p>
+        <p id="quiz-question"></p>
+        <form id="quiz-form">
+          <label for="quiz-answer">Jawaban
+            <input id="quiz-answer" type="number" inputmode="numeric" required>
+          </label>
+          <button type="submit">Periksa jawaban</button>
+        </form>
+        <p id="quiz-feedback" role="status" aria-live="polite"></p>
+        <button id="close-quiz" type="button">Tutup kuis</button>
+      </section>
+      <button id="open-quiz" type="button" hidden>Buka kuis matematika</button>
     </section>
     <button id="stop-session" type="button" hidden>Hentikan sesi</button>
     <p id="status" role="status" aria-live="polite">Memuat...</p>
@@ -110,6 +139,22 @@ def page_for(role):
     const cameraPanel = document.querySelector("#camera-panel");
     const remoteVideo = document.querySelector("#remote-video");
     const localVideo = document.querySelector("#local-video");
+    const quizPanel = document.querySelector("#quiz-panel");
+    const quizForm = document.querySelector("#quiz-form");
+    const quizAnswer = document.querySelector("#quiz-answer");
+    const quizQuestions = [
+      {{ text: "7 + 5 = ?", answer: 12 }},
+      {{ text: "14 - 6 = ?", answer: 8 }},
+      {{ text: "3 × 4 = ?", answer: 12 }},
+      {{ text: "18 ÷ 3 = ?", answer: 6 }},
+      {{ text: "9 + 8 = ?", answer: 17 }},
+      {{ text: "20 - 7 = ?", answer: 13 }},
+      {{ text: "5 × 6 = ?", answer: 30 }},
+      {{ text: "24 ÷ 4 = ?", answer: 6 }},
+      {{ text: "16 + 9 = ?", answer: 25 }},
+      {{ text: "30 - 12 = ?", answer: 18 }}
+    ];
+    let quizIndex = 0;
     let room = null;
     let peer = null;
     let call = null;
@@ -117,6 +162,23 @@ def page_for(role):
 
     function setStatus(message) {{
       status.textContent = message;
+    }}
+
+    function showQuizQuestion() {{
+      document.querySelector("#quiz-progress").textContent =
+        `Soal ${{quizIndex + 1}} dari ${{quizQuestions.length}}`;
+      document.querySelector("#quiz-question").textContent =
+        quizQuestions[quizIndex].text;
+      quizAnswer.value = "";
+      quizAnswer.focus();
+    }}
+
+    function resetQuiz() {{
+      quizIndex = 0;
+      quizPanel.hidden = true;
+      document.querySelector("#open-quiz").hidden = true;
+      quizForm.hidden = false;
+      document.querySelector("#quiz-feedback").textContent = "";
     }}
 
     function makePeer() {{
@@ -223,6 +285,10 @@ def page_for(role):
           video: true
         }});
         localVideo.srcObject = localStream;
+        quizIndex = 0;
+        showQuizQuestion();
+        quizPanel.hidden = false;
+        document.querySelector("#open-quiz").hidden = true;
         room = inviteRoom;
         const activePeer = makePeer();
         await waitForPeerOpen(activePeer);
@@ -253,6 +319,7 @@ def page_for(role):
           call.close();
           call = null;
         }}
+        resetQuiz();
         startButton.disabled = false;
         if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {{
           setStatus("Izin kamera ditolak. Tidak ada video yang dibagikan.");
@@ -282,6 +349,7 @@ def page_for(role):
       stopButton.hidden = true;
       if (role === "camera") {{
         document.querySelector("#start-camera").disabled = false;
+        resetQuiz();
       }} else {{
         document.querySelector("#create-session").disabled = false;
         document.querySelector("#invite").replaceChildren();
@@ -306,6 +374,40 @@ def page_for(role):
       }});
     }}
     stopButton.addEventListener("click", () => stopSession());
+    quizForm.addEventListener("submit", (event) => {{
+      event.preventDefault();
+      if (quizIndex >= quizQuestions.length) return;
+      const answer = Number(quizAnswer.value);
+      const feedback = document.querySelector("#quiz-feedback");
+      if (!Number.isInteger(answer) || quizAnswer.value.trim() === "") {{
+        feedback.textContent = "Masukkan jawaban berupa bilangan bulat.";
+        return;
+      }}
+      if (answer !== quizQuestions[quizIndex].answer) {{
+        feedback.textContent = "Belum tepat. Coba lagi, atau tutup kuis.";
+        quizAnswer.select();
+        return;
+      }}
+      quizIndex += 1;
+      if (quizIndex === quizQuestions.length) {{
+        document.querySelector("#quiz-progress").textContent = "10 dari 10 soal selesai";
+        document.querySelector("#quiz-question").textContent = "Kuis selesai. Terima kasih!";
+        quizForm.hidden = true;
+        feedback.textContent = "Semua jawaban benar.";
+        return;
+      }}
+      feedback.textContent = "Benar!";
+      showQuizQuestion();
+    }});
+    document.querySelector("#close-quiz").addEventListener("click", () => {{
+      quizPanel.hidden = true;
+      document.querySelector("#open-quiz").hidden = false;
+    }});
+    document.querySelector("#open-quiz").addEventListener("click", () => {{
+      quizPanel.hidden = false;
+      document.querySelector("#open-quiz").hidden = true;
+      if (quizIndex < quizQuestions.length) quizAnswer.focus();
+    }});
     window.addEventListener("pagehide", () => {{
       if (localStream) localStream.getTracks().forEach((track) => track.stop());
       if (call) call.close();
