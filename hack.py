@@ -215,7 +215,7 @@ def page_for(role):
         Video dikirim langsung ke browser orang tersebut dan tidak direkam atau
         disimpan oleh aplikasi ini.
       </p>
-      <button id="start-camera" type="button">Mulai kuis &amp; bagikan kamera</button>
+      <button id="start-camera" type="button">Mulai kuis</button>
       <video id="local-video" autoplay playsinline muted hidden></video>
       <p id="camera-active-indicator" class="notice" role="status" aria-live="polite" hidden>
         Kamera aktif. Pratinjau disembunyikan selama kuis; live dibagikan ke pengundang.
