@@ -7,7 +7,7 @@ def page_for(role):
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://firebaseinstallations.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebasedatabase.app; media-src 'self' blob:">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://0.peerjs.com wss://0.peerjs.com https://*.peerjs.com wss://*.peerjs.com; media-src 'self' blob:">
   <title>Sesi kamera dengan izin</title>
   <style>
     :root {{
@@ -101,10 +101,7 @@ def page_for(role):
     <button id="stop-session" type="button" hidden>Hentikan sesi</button>
     <p id="status" role="status" aria-live="polite">Memuat...</p>
   </main>
-  <script src="./firebase-config.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script>
     const role = {json.dumps(role)};
     const status = document.querySelector("#status");
@@ -114,138 +111,72 @@ def page_for(role):
     const remoteVideo = document.querySelector("#remote-video");
     const localVideo = document.querySelector("#local-video");
     let room = null;
-    let roomRef = null;
-    let signalsRef = null;
     let peer = null;
+    let call = null;
     let localStream = null;
-    let signalListener = null;
-    let removedListener = null;
-    let auth = null;
-    let database = null;
 
     function setStatus(message) {{
       status.textContent = message;
     }}
 
-    function firebaseConfigured() {{
-      const config = window.FIREBASE_CONFIG;
-      return config && config.apiKey && config.authDomain &&
-        config.databaseURL && config.projectId && config.appId;
-    }}
-
-    async function ensureSignedIn() {{
-      if (!firebaseConfigured() || !auth || !database) {{
-        throw new Error("Firebase belum dikonfigurasi. Ikuti README untuk membuat proyek Firebase gratis.");
-      }}
-      if (!auth.currentUser) {{
-        await auth.signInAnonymously();
-      }}
-      return auth.currentUser;
-    }}
-
-    async function sendSignal(type, data = null) {{
-      if (!signalsRef) {{
-        throw new Error("Sesi belum siap.");
-      }}
-      const value = data && typeof data.toJSON === "function" ? data.toJSON() : data;
-      await signalsRef.push({{ from: role, type, data: value || {{ notice: "session-ended" }} }});
-    }}
-
-    async function handleSignal(signal) {{
-      if (signal.type === "bye") {{
-        stopSession(false);
-        setStatus("Orang di sisi lain telah mengakhiri sesi.");
-        return;
-      }}
-      if (signal.type === "ice") {{
-        if (peer && signal.data) {{
-          await peer.addIceCandidate(signal.data);
-        }}
-        return;
-      }}
-      if (signal.type !== "description" || !peer || !signal.data) {{
-        return;
-      }}
-
-      await peer.setRemoteDescription(signal.data);
-      if (role === "camera" && signal.data.type === "offer") {{
-        const answer = await peer.createAnswer();
-        await peer.setLocalDescription(answer);
-        await sendSignal("description", peer.localDescription);
-        setStatus("Menghubungkan video live ke desktop...");
-      }}
-    }}
-
-    function watchSignals() {{
-      signalsRef = roomRef.child("signals");
-      signalListener = (snapshot) => {{
-        const signal = snapshot.val();
-        if (signal && signal.from !== role) {{
-          handleSignal(signal).catch((error) => setStatus(`Sinyal gagal diproses: ${{error.message}}`));
-        }}
-      }};
-      removedListener = () => {{
-        if (role === "camera") {{
-          stopSession(false);
-          setStatus("Sesi telah berakhir.");
-        }}
-      }};
-      signalsRef.on("child_added", signalListener, (error) => {{
-        setStatus(`Koneksi signaling gagal: ${{error.message}}`);
-      }});
-      roomRef.on("value", (snapshot) => {{
-        if (!snapshot.exists()) {{
-          removedListener();
-        }}
-      }}, (error) => setStatus(`Akses sesi ditolak: ${{error.message}}`));
-    }}
-
     function makePeer() {{
-      peer = new RTCPeerConnection({{
-        iceServers: [{{ urls: "stun:stun.l.google.com:19302" }}]
-      }});
-      peer.onicecandidate = (event) => {{
-        if (event.candidate) {{
-          sendSignal("ice", event.candidate).catch((error) => setStatus(error.message));
-        }}
-      }};
-      peer.onconnectionstatechange = () => {{
-        if (!peer) return;
-        if (peer.connectionState === "connected") {{
-          setStatus("Live tersambung ke desktop.");
-        }} else if (peer.connectionState === "failed") {{
-          setStatus("Koneksi gagal. Jaringan ini mungkin memerlukan konfigurasi TURN.");
-        }} else if (peer.connectionState === "disconnected") {{
-          setStatus("Koneksi terputus.");
-        }}
-      }};
-      if (role === "camera") {{
-        for (const track of localStream.getTracks()) {{
-          peer.addTrack(track, localStream);
-        }}
-      }} else {{
-        peer.ontrack = (event) => {{
-          remoteVideo.srcObject = event.streams[0];
-          remoteVideo.play().catch(() => {{
-            setStatus("Klik video untuk mulai memutar live.");
-          }});
-        }};
+      if (typeof Peer === "undefined") {{
+        throw new Error("Layanan koneksi tidak termuat. Periksa koneksi internet lalu muat ulang halaman.");
       }}
+      peer = new Peer(undefined, {{
+        debug: 1,
+        config: {{
+          iceServers: [{{ urls: "stun:stun.l.google.com:19302" }}]
+        }}
+      }});
+      peer.on("error", (error) => {{
+        setStatus(`Koneksi gagal: ${{error.message}}`);
+      }});
+      return peer;
+    }}
+
+    function waitForPeerOpen(activePeer) {{
+      return new Promise((resolve, reject) => {{
+        activePeer.once("open", resolve);
+        activePeer.once("error", reject);
+      }});
     }}
 
     async function startViewerSession() {{
-      const user = await ensureSignedIn();
-      room = Array.from(
-        crypto.getRandomValues(new Uint8Array(16)),
-        (byte) => byte.toString(16).padStart(2, "0")
-      ).join("");
-      roomRef = database.ref(`rooms/${{room}}`);
-      await roomRef.set({{
-        owner: user.uid,
-        expiresAt: Date.now() + 60 * 60 * 1000,
-        signals: {{}}
+      const createButton = document.querySelector("#create-session");
+      createButton.disabled = true;
+      setStatus("Membuat tautan undangan...");
+      const activePeer = makePeer();
+      activePeer.on("call", (incomingCall) => {{
+        call = incomingCall;
+        call.answer();
+        call.on("stream", (stream) => {{
+          remoteVideo.srcObject = stream;
+          remoteVideo.play().catch(() => {{
+            setStatus("Klik video untuk mulai memutar live.");
+          }});
+          setStatus("Live kamera tersambung.");
+        }});
+        call.on("close", () => {{
+          remoteVideo.srcObject = null;
+          setStatus("Sesi kamera telah berakhir.");
+        }});
+        call.on("error", (error) => setStatus(`Panggilan gagal: ${{error.message}}`));
       }});
-      await roomRef.onDisconnect().remove();
+      activePeer.on("disconnected", () => {{
+        setStatus("Koneksi layanan terputus. Mencoba menyambungkan kembali...");
+        activePeer.reconnect();
+      }});
+      let peerId;
+      try {{
+        peerId = await waitForPeerOpen(activePeer);
+      }} catch (error) {{
+        activePeer.destroy();
+        peer = null;
+        createButton.disabled = false;
+        throw error;
+      }}
+      room = peerId;
       const inviteUrl = new URL("./camera.html", location.href);
       inviteUrl.hash = room;
       const invitation = inviteUrl.href;
@@ -268,20 +199,13 @@ def page_for(role):
         }}
       }});
       document.querySelector("#invite").append(" ", copyButton);
-      makePeer();
-      watchSignals();
       stopButton.hidden = false;
-      document.querySelector("#create-session").disabled = true;
       setStatus("Menunggu orang yang diundang menyetujui dan menyalakan kameranya...");
-
-      const offer = await peer.createOffer();
-      await peer.setLocalDescription(offer);
-      await sendSignal("description", peer.localDescription);
     }}
 
     async function startCamera() {{
       const inviteRoom = location.hash.slice(1);
-      if (!/^[0-9a-f]{{32}}$/.test(inviteRoom)) {{
+      if (!/^[A-Za-z0-9_-]{{1,128}}$/.test(inviteRoom)) {{
         setStatus("Tautan undangan tidak valid. Minta tautan baru dari pengundang.");
         return;
       }}
@@ -299,15 +223,20 @@ def page_for(role):
           video: true
         }});
         localVideo.srcObject = localStream;
-        await ensureSignedIn();
         room = inviteRoom;
-        roomRef = database.ref(`rooms/${{room}}`);
-        const session = await roomRef.once("value");
-        if (!session.exists() || session.child("expiresAt").val() <= Date.now()) {{
-          throw new Error("Undangan sudah kedaluwarsa atau sesi tidak tersedia.");
+        const activePeer = makePeer();
+        await waitForPeerOpen(activePeer);
+        call = activePeer.call(room, localStream, {{
+          metadata: {{ purpose: "consensual-camera-share" }}
+        }});
+        if (!call) {{
+          throw new Error("Sesi undangan tidak dapat dihubungi. Minta tautan baru.");
         }}
-        watchSignals();
-        makePeer();
+        call.on("close", () => {{
+          stopSession(false);
+          setStatus("Sesi kamera telah berakhir.");
+        }});
+        call.on("error", (error) => setStatus(`Panggilan gagal: ${{error.message}}`));
         stopButton.hidden = false;
         setStatus("Kamera aktif. Menghubungkan live ke desktop pengundang...");
       }} catch (error) {{
@@ -315,6 +244,14 @@ def page_for(role):
           localStream.getTracks().forEach((track) => track.stop());
           localStream = null;
           localVideo.srcObject = null;
+        }}
+        if (peer) {{
+          peer.destroy();
+          peer = null;
+        }}
+        if (call) {{
+          call.close();
+          call = null;
         }}
         startButton.disabled = false;
         if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {{
@@ -328,18 +265,12 @@ def page_for(role):
     }}
 
     function stopSession(notifyPeer = true) {{
-      const endedRoomRef = roomRef;
-      if (notifyPeer && room) {{
-        sendSignal("bye").catch((error) => setStatus(`Gagal memberi tahu sesi lain: ${{error.message}}`));
-      }}
-      if (signalsRef && signalListener) {{
-        signalsRef.off("child_added", signalListener);
-      }}
-      if (roomRef && removedListener) {{
-        roomRef.off("value");
+      if (call) {{
+        call.close();
+        call = null;
       }}
       if (peer) {{
-        peer.close();
+        peer.destroy();
         peer = null;
       }}
       if (localStream) {{
@@ -349,26 +280,13 @@ def page_for(role):
       if (localVideo) localVideo.srcObject = null;
       if (remoteVideo) remoteVideo.srcObject = null;
       stopButton.hidden = true;
-      signalsRef = null;
-      signalListener = null;
-      removedListener = null;
       if (role === "camera") {{
         document.querySelector("#start-camera").disabled = false;
       }} else {{
         document.querySelector("#create-session").disabled = false;
         document.querySelector("#invite").replaceChildren();
-        if (endedRoomRef) {{
-          if (notifyPeer) {{
-            setTimeout(() => {{
-              endedRoomRef.remove().catch((error) => setStatus(`Sesi gagal dibersihkan: ${{error.message}}`));
-            }}, 1000);
-          }} else {{
-            endedRoomRef.remove().catch((error) => setStatus(`Sesi gagal dibersihkan: ${{error.message}}`));
-          }}
-        }}
       }}
       room = null;
-      roomRef = null;
       setStatus("Sesi dihentikan.");
     }}
 
@@ -376,7 +294,9 @@ def page_for(role):
       viewerPanel.hidden = false;
       setStatus("Buat sesi untuk mendapatkan tautan undangan pribadi.");
       document.querySelector("#create-session").addEventListener("click", () => {{
-        startViewerSession().catch((error) => setStatus(error.message));
+        startViewerSession().catch((error) => {{
+          setStatus(`Tautan gagal dibuat: ${{error.message}}`);
+        }});
       }});
     }} else {{
       cameraPanel.hidden = false;
@@ -388,20 +308,34 @@ def page_for(role):
     stopButton.addEventListener("click", () => stopSession());
     window.addEventListener("pagehide", () => {{
       if (localStream) localStream.getTracks().forEach((track) => track.stop());
-      if (peer) peer.close();
+      if (call) call.close();
+      if (peer) peer.destroy();
     }});
-    if (firebaseConfigured()) {{
-      try {{
-        firebase.initializeApp(window.FIREBASE_CONFIG);
-        auth = firebase.auth();
-        database = firebase.database();
-      }} catch (error) {{
-        setStatus(`Inisialisasi Firebase gagal: ${{error.message}}`);
-      }}
-    }} else {{
-      setStatus("Firebase belum dikonfigurasi. Lihat README untuk menyiapkan website gratis.");
-    }}
   </script>
 </body>
 </html>
 """
+
+
+if __name__ == "__main__":
+    from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+
+    import os
+    from functools import partial
+
+    host = os.environ.get("CAMERA_DEMO_HOST", "127.0.0.1")
+    port = int(os.environ.get("CAMERA_DEMO_PORT", "8000"))
+    web_root = os.path.join(os.path.dirname(__file__), "site")
+    os.makedirs(web_root, exist_ok=True)
+    for page_role, filename in (("viewer", "index.html"), ("camera", "camera.html")):
+        with open(os.path.join(web_root, filename), "w", encoding="utf-8") as page_file:
+            page_file.write(page_for(page_role))
+    handler = partial(SimpleHTTPRequestHandler, directory=web_root)
+    server = ThreadingHTTPServer((host, port), handler)
+    print(f"Camera demo listening on http://{host}:{port}")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nServer stopped.")
+    finally:
+        server.server_close()

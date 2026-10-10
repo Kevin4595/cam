@@ -26,8 +26,6 @@ jobs:
           python-version: "3.12"
       - name: Build static website
         run: python build_site.py
-        env:
-          FIREBASE_CONFIG: ${{ vars.FIREBASE_CONFIG }}
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
