@@ -1,0 +1,21 @@
+[Unit]
+Description=Camera consent website
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/camerademo
+Environment=CAMERA_DEMO_HOST=127.0.0.1
+Environment=CAMERA_DEMO_PORT=8000
+ExecStart=/opt/camerademo/.venv/bin/uvicorn hack:app --host 127.0.0.1 --port 8000 --workers 1
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
